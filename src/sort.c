@@ -363,6 +363,9 @@ static struct keyfield *keylist;
 /* Program used to (de)compress temp files.  Must accept -d.  */
 static char const *compress_program;
 
+/* Compare by basename instead of fully qualified path name */
+static bool use_basename;
+
 /* Annotate the output with extra info to aid the user.  */
 static bool debug;
 
@@ -470,6 +473,8 @@ Other options:\n\
                             for more use temp files\n\
 "), stdout);
       fputs (_("\
+  -B, --basename            sort by basename instead of fully qualified path\n\
+                              name, if any\n\
   -c, --check, --check=diagnose-first  check for sorted input; do not sort\n\
   -C, --check=quiet, --check=silent  like -c, but do not report first bad line\
 \n\
@@ -544,13 +549,15 @@ enum
   NMERGE_OPTION,
   RANDOM_SOURCE_OPTION,
   SORT_OPTION,
-  PARALLEL_OPTION
+  PARALLEL_OPTION,
+  BASENAME_OPTION
 };
 
-static char const short_options[] = "-bcCdfghik:mMno:rRsS:t:T:uVy:z";
+static char const short_options[] = "-bBcCdfghik:mMno:rRsS:t:T:uVy:z";
 
 static struct option const long_options[] =
 {
+  {"basename", no_argument, nullptr, BASENAME_OPTION},
   {"ignore-leading-blanks", no_argument, nullptr, 'b'},
   {"check", optional_argument, nullptr, CHECK_OPTION},
   {"compress-program", required_argument, nullptr, COMPRESS_PROGRAM_OPTION},
@@ -2673,6 +2680,22 @@ diff_reversed (int diff, bool reversed)
   return reversed ? (diff < 0) - (diff > 0) : diff;
 }
 
+/* Get basename */
+
+static void
+mkbasename (char **text, size_t *size)
+{
+  int shift;
+  char *bn = strrchr (*text, '/');
+
+  if (bn != nullptr)
+    {
+      shift = (bn - *text) + 1;
+      *text += shift;
+      *size -= shift;
+    }
+}
+
 /* Compare two lines A and B trying every key in sequence until there
    are no more keys or a difference is found. */
 
@@ -2702,6 +2725,12 @@ keycompare (struct line const *a, struct line const *b)
       /* Find the lengths. */
       size_t lena = lima - texta;
       size_t lenb = limb - textb;
+
+      if (use_basename)
+        {
+          mkbasename (&texta, &lena);
+          mkbasename (&textb, &lenb);
+        }
 
       if (hard_LC_COLLATE || key_numeric (key)
           || key->month || key->random || key->version)
@@ -2876,6 +2905,7 @@ compare (struct line const *a, struct line const *b)
 {
   int diff;
   size_t alen, blen;
+  char *atext, *btext;
 
   /* First try to compare on the specified keys (if any).
      The only two cases with no key at all are unadorned sort,
@@ -2891,6 +2921,14 @@ compare (struct line const *a, struct line const *b)
      fall through to the default comparison.  */
   alen = a->length - 1, blen = b->length - 1;
 
+  atext = a->text;
+  btext = b->text;
+  if (use_basename)
+    {
+      mkbasename (&atext, &alen);
+      mkbasename (&btext, &blen);
+    }
+
   if (alen == 0)
     diff = - NONZERO (blen);
   else if (blen == 0)
@@ -2901,11 +2939,11 @@ compare (struct line const *a, struct line const *b)
          it will not unconditionally write '\0' after the
          passed in buffers, which was seen to give around
          a 3% increase in performance for short lines.  */
-      diff = xmemcoll0 (a->text, alen + 1, b->text, blen + 1);
+      diff = xmemcoll0 (atext, alen + 1, btext, blen + 1);
     }
   else
     {
-      diff = memcmp (a->text, b->text, MIN (alen, blen));
+      diff = memcmp (atext, btext, MIN (alen, blen));
       if (!diff)
         diff = (alen > blen) - (alen < blen);
     }
@@ -4546,6 +4584,11 @@ main (int argc, char **argv)
             str[1] = '\0';
             set_ordering (str, &gkey, bl_both);
           }
+          break;
+
+        case 'B':
+        case BASENAME_OPTION:
+          use_basename = true;
           break;
 
         case CHECK_OPTION:
