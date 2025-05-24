@@ -1,7 +1,7 @@
 #!/bin/sh
-# ensure that csplit uses a bounded amount of memory
+# From 7.2-9.7, this would trigger an out of bounds mem read
 
-# Copyright (C) 2010-2025 Free Software Foundation, Inc.
+# Copyright (C) 2025 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,16 +17,19 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
-print_ver_ csplit
+print_ver_ sort
+getlimits_
 
-# Determine basic amount of memory needed.
-{ echo y; echo n; } > f || framework_failure_
-vm=$(get_min_ulimit_v_ csplit -z f %n%1) \
-  || skip_ 'shell lacks ulimit, or ASAN enabled'
+# This issue triggers with valgrind or ASAN
+valgrind --error-exitcode=1 sort --version 2>/dev/null &&
+  VALGRIND='valgrind --error-exitcode=1'
 
-(
- ulimit -v $(($vm + 40000)) \
-   && { yes | head -n2500000; echo n; } | csplit -z - %n%1
-) || fail=1
+{ printf '%s\n' aa bb; } > in || framework_failure_
+
+_POSIX2_VERSION=200809 $VALGRIND sort +0.${SIZE_MAX}R in > out || fail=1
+compare in out || fail=1
+
+_POSIX2_VERSION=200809 $VALGRIND sort +1 -1.${SIZE_MAX}R in > out || fail=1
+compare in out || fail=1
 
 Exit $fail

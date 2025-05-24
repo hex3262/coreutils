@@ -69,6 +69,7 @@
 /lib/fcntl.h
 /lib/float.h
 /lib/fnmatch.h
+/lib/fts_.h
 /lib/getopt-cdefs.h
 /lib/getopt.h
 /lib/glthread
@@ -195,12 +196,12 @@
 /src/coreutils.h
 /src/coreutils_shebangs
 /src/coreutils_symlinks
+/src/crctab.c
 /src/cu-progs.mk
 /src/fs-def
 /src/fs-kernel-magic
 /src/fs-latest-magic.h
 /src/fs-magic
-/src/make-prime-list
 /src/primes.h
 /src/single-binary.mk
 /src/version.c

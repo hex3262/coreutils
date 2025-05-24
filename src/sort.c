@@ -1651,7 +1651,11 @@ begfield (struct line const *line, struct keyfield const *key)
       ++ptr;
 
   /* Advance PTR by SCHAR (if possible), but no further than LIM.  */
-  ptr = MIN (lim, ptr + schar);
+  size_t remaining_bytes = lim - ptr;
+  if (schar < remaining_bytes)
+    ptr += schar;
+  else
+    ptr = lim;
 
   return ptr;
 }
@@ -1753,7 +1757,11 @@ limfield (struct line const *line, struct keyfield const *key)
           ++ptr;
 
       /* Advance PTR by ECHAR (if possible), but no further than LIM.  */
-      ptr = MIN (lim, ptr + echar);
+      size_t remaining_bytes = lim - ptr;
+      if (echar < remaining_bytes)
+        ptr += echar;
+      else
+        ptr = lim;
     }
 
   return ptr;

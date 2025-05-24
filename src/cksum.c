@@ -20,19 +20,18 @@
   Usage: cksum [file...]
 
   The code segment between "#ifdef CRCTAB" and "#else" is the code
-  which calculates the "crctab". It is included for those who want
-  verify the correctness of the "crctab". To recreate the "crctab",
-  do something like the following:
-
-      cc -I../lib -DCRCTAB -o crctab cksum.c
-      ./crctab > crctab.c
+  which generates crctab.c
 
   This software is compatible with neither the System V nor the BSD
   'sum' program.  It is supposed to conform to POSIX, except perhaps
   for foreign language support.  Any inconsistency with the standard
   (other than foreign language support) is a bug.  */
 
-#include <config.h>
+/* This include must be at the top of the file to satisfy
+   sc_require_config_h_first.  */
+#ifndef CRCTAB
+# include <config.h>
+#endif
 
 #ifdef CRCTAB
 
@@ -356,8 +355,9 @@ crc32b_sum_stream (FILE *stream, void *resstream, uintmax_t *reslen)
    If ARGS is true, also print the FILE name.  */
 
 void
-output_crc (char const *file, int binary_file, void const *digest, bool raw,
-            bool tagged, unsigned char delim, bool args, uintmax_t length)
+output_crc (char const *file, MAYBE_UNUSED int binary_file,
+            void const *digest, bool raw, MAYBE_UNUSED bool tagged,
+            unsigned char delim, bool args, uintmax_t length)
 {
   if (raw)
     {

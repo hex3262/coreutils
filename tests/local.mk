@@ -388,6 +388,7 @@ all_tests =					\
   tests/sort/sort-debug-keys.sh			\
   tests/sort/sort-debug-warn.sh			\
   tests/sort/sort-discrim.sh			\
+  tests/sort/sort-field-limit.sh		\
   tests/sort/sort-files0-from.pl		\
   tests/sort/sort-float.sh			\
   tests/sort/sort-h-thousands-sep.sh		\
@@ -553,6 +554,7 @@ all_tests =					\
   tests/dd/no-allocate.sh			\
   tests/dd/nocache.sh				\
   tests/dd/nocache_eof.sh			\
+  tests/dd/nocache_fail.sh			\
   tests/dd/not-rewound.sh			\
   tests/dd/reblock.sh				\
   tests/dd/skip-seek.pl				\

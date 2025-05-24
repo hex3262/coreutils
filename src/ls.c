@@ -3307,14 +3307,16 @@ static int
 file_has_aclinfo_cache (char const *file, struct fileinfo *f,
                         struct aclinfo *ai, int flags)
 {
-  /* st_dev and associated info for the most recently processed device
+  /* If UNSUPPORTED_SCONTEXT, these variables hold the
+     st_dev and associated info for the most recently processed device
      for which file_has_aclinfo failed indicating lack of support.  */
   static int unsupported_return;
   static char *unsupported_scontext;
   static int unsupported_scontext_err;
   static dev_t unsupported_device;
 
-  if (f->stat_ok && f->stat.st_dev == unsupported_device)
+  if (f->stat_ok && unsupported_scontext
+      && f->stat.st_dev == unsupported_device)
     {
       ai->buf = ai->u.__gl_acl_ch;
       ai->size = 0;
@@ -3327,7 +3329,8 @@ file_has_aclinfo_cache (char const *file, struct fileinfo *f,
   errno = 0;
   int n = file_has_aclinfo (file, ai, flags);
   int err = errno;
-  if (f->stat_ok && n <= 0 && !acl_errno_valid (err))
+  if (f->stat_ok && n <= 0 && !acl_errno_valid (err)
+      && (!(flags & ACL_GET_SCONTEXT) || !acl_errno_valid (ai->scontext_err)))
     {
       unsupported_return = n;
       unsupported_scontext = ai->scontext;
@@ -3343,11 +3346,13 @@ file_has_aclinfo_cache (char const *file, struct fileinfo *f,
 static bool
 has_capability_cache (char const *file, struct fileinfo *f)
 {
-  /* st_dev of the most recently processed device for which we've
+  /* If UNSUPPORTED_CACHED, UNSUPPORTED_DEVICE is the cached
+     st_dev of the most recently processed device for which we've
      found that has_capability fails indicating lack of support.  */
+  static bool unsupported_cached;
   static dev_t unsupported_device;
 
-  if (f->stat_ok && f->stat.st_dev == unsupported_device)
+  if (f->stat_ok && unsupported_cached && f->stat.st_dev == unsupported_device)
     {
       errno = ENOTSUP;
       return 0;
@@ -3355,7 +3360,10 @@ has_capability_cache (char const *file, struct fileinfo *f)
 
   bool b = has_capability (file);
   if (f->stat_ok && !b && !acl_errno_valid (errno))
-    unsupported_device = f->stat.st_dev;
+    {
+      unsupported_cached = true;
+      unsupported_device = f->stat.st_dev;
+    }
   return b;
 }
 
@@ -3537,8 +3545,14 @@ gobble_file (char const *name, enum filetype type, ino_t inode,
 
       /* Let the user know via '?' if errno is EACCES, which can
          happen with Linux kernel 6.12 on an NFS file system.
-         That's better than a longwinded diagnostic.  */
-      bool cannot_access_acl = n < 0 && errno == EACCES;
+         That's better than a long-winded diagnostic.
+
+         Similarly, ignore ENOENT which may happen on some versions
+         of cygwin when processing dangling symlinks for example.
+         Also if a file is removed while we're reading ACL info,
+         ACL_T_UNKNOWN is sufficient indication for that edge case.  */
+      bool cannot_access_acl = n < 0
+           && (errno == EACCES || errno == ENOENT);
 
       f->acl_type = (!have_scontext && !have_acl
                      ? (cannot_access_acl ? ACL_T_UNKNOWN : ACL_T_NONE)
@@ -3548,7 +3562,7 @@ gobble_file (char const *name, enum filetype type, ino_t inode,
       any_has_acl |= f->acl_type != ACL_T_NONE;
 
       if (format == long_format && n < 0 && !cannot_access_acl)
-        error (0, ai.u.err, "%s", quotef (full_name));
+        error (0, errno, "%s", quotef (full_name));
       else
         {
           /* When requesting security context information, don't make

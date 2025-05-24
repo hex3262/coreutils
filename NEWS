@@ -4,6 +4,20 @@ GNU coreutils NEWS                                    -*- outline -*-
 
 ** Bug fixes
 
+  'cp -p' had spurious "Operation not supported" failures when
+  copying to non-NFS files from NFSv4 files with trivial ACLs.
+  [bug introduced in coreutils-9.6]
+
+  sort with key character offsets of SIZE_MAX, could induce
+  a read of 1 byte before an allocated heap buffer. For example:
+  'sort +0.18446744073709551615R input' on 64 bit systems.
+  [bug introduced in coreutils-7.2]
+
+
+* Noteworthy changes in release 9.7 (2025-04-09) [stable]
+
+** Bug fixes
+
   'cat' would fail with "input file is output file" if input and
   output are the same terminal device and the output is append-only.
   [bug introduced in coreutils-9.6]
@@ -11,12 +25,35 @@ GNU coreutils NEWS                                    -*- outline -*-
   'cksum -a crc' misbehaved on aarch64 with 32-bit uint_fast32_t.
   [bug introduced in coreutils-9.6]
 
-  'ls -Z dir' would crash.
+  dd with the 'nocache' flag will now detect all failures to drop the
+  cache for the whole file.  Previously it may have erroneously succeeded.
+  [bug introduced with the "nocache" feature in coreutils-8.11]
+
+  'ls -Z dir' would crash on all systems, and 'ls -l' could crash
+  on systems like Android with SELinux but without xattr support.
   [bug introduced in coreutils-9.6]
+
+  `ls -l` could output spurious "Not supported" errors in certain cases,
+  like with dangling symlinks on cygwin.
+  [bug introduced in coreutils-9.6]
+
+  timeout would fail to timeout commands with infinitesimal timeouts.
+  For example `timeout 1e-5000 sleep inf` would never timeout.
+  [bug introduced with timeout in coreutils-7.0]
+
+  sleep, tail, and timeout would sometimes sleep for slightly less
+  time than requested.
+  [bug introduced in coreutils-5.0]
 
   'who -m' now outputs entries for remote logins.  Previously login
   entries prefixed with the service (like "sshd") were not matched.
   [bug introduced in coreutils-9.4]
+
+** Improvements
+
+  'logname' correctly returns the user who logged in the session,
+  on more systems.  Previously on musl or uclibc it would have merely
+  output the LOGNAME environment variable.
 
 
 * Noteworthy changes in release 9.6 (2025-01-17) [stable]

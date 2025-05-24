@@ -22,7 +22,7 @@ manual_title = Core GNU utilities
 url_dir_list = https://ftp.gnu.org/gnu/$(PACKAGE)
 
 # Exclude bundled external projects from syntax checks
-VC_LIST_ALWAYS_EXCLUDE_REGEX = src/blake2/.*$$
+VC_LIST_ALWAYS_EXCLUDE_REGEX = src/(blake2/.*|longlong.h)$$
 
 # Tests not to run as part of "make distcheck".
 local-checks-to-skip = \
@@ -48,7 +48,7 @@ export VERBOSE = yes
 # 4914152 9e
 export XZ_OPT = -8e
 
-old_NEWS_hash = be5016485c56f34b60ba4e6d3b407489
+old_NEWS_hash = e846927f631201c953d1eb0774c23005
 
 # Add an exemption for sc_makefile_at_at_check.
 _makefile_at_at_check_exceptions = \
@@ -812,7 +812,8 @@ sc_fs-magic-compare:
 sc_gitignore_missing:
 	@{ sed -n '/^\/lib\/.*\.h$$/{p;p}' $(srcdir)/.gitignore;	\
 	    find lib -name '*.in*' ! -name '*~' ! -name 'sys_*' |	\
-	      sed 's|^|/|; s|_\(.*in\.h\)|/\1|; s/\.in//'; } |		\
+	      sed 's|^|/|; s|_\(.*in\.h\)|/\1|; s/\.in//' |		\
+	      sed 's|/fts\.h$$|/fts_.h|'; } |				\
 	      sort | uniq -u | grep . && { echo '$(ME): Add above'	\
 		'entries to .gitignore' >&2; exit 1; } || :
 
@@ -868,7 +869,7 @@ exclude_file_name_regexp--sc_system_h_headers = \
   ^src/((system|copy|chown-core|find-mount-point)\.h|make-prime-list\.c)$$
 
 _src := (false|lbracket|chown-(chgrp|chown)
-_src := $(_src)|ls-(dir|ls|vdir)|tac-pipe|uname-(arch|uname))
+_src := $(_src)|ls-(dir|ls|vdir)|make-prime-list|tac-pipe|uname-(arch|uname))
 _gl_src = (xdecto.max|cl-strtold)
 exclude_file_name_regexp--sc_require_config_h_first = \
   (^lib/buffer-lcm\.c|gl/lib/$(_gl_src)\.c|src/$(_src)\.c)$$
@@ -920,8 +921,10 @@ exclude_file_name_regexp--sc_prohibit_operator_at_end_of_line = \
 exclude_file_name_regexp--sc_error_message_uppercase = ^src/factor\.c$$
 exclude_file_name_regexp--sc_prohibit_atoi_atof = ^src/make-prime-list\.c$$
 
-# Exception here as we don't want __attribute elided on non GCC
-exclude_file_name_regexp--sc_prohibit-gl-attributes = ^src/libstdbuf\.c$$
+# Exception here as we don't want __attribute elided on non GCC for stdbuf
+# and we don't want to depend on gnulib for make-prime-list
+exclude_file_name_regexp--sc_prohibit-gl-attributes = \
+  ^src/(make-prime-list|libstdbuf)\.c$$
 
 exclude_file_name_regexp--sc_prohibit_uppercase_id_est = \.diff$$
 exclude_file_name_regexp--sc_ensure_dblspace_after_dot_before_id_est = \.diff$$
@@ -955,3 +958,9 @@ _gl_TS_unmarked_extern_vars = ptr_MD5_.*
 # Other tight_scope settings
 _gl_TS_dir = .
 _gl_TS_obj_files = src/*.$(OBJEXT)
+# Settings for running codespell.
+csiwl_1 = debbugs,clen,te,bu,shs,linke,fo,souch,inout,outin
+csiwl_2 = kno,ois,afile,whats,hda,indx,ot,nam
+codespell_ignore_words_list = $(csiwl_1),$(csiwl_2)
+exclude_file_name_regexp--sc_codespell = \
+  ^(THANKS\.in|tests/pr/.*(F|tn?|l(o|m|i)|bl))$$
