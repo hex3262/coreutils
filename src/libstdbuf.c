@@ -17,16 +17,19 @@
 /* Written by Pádraig Brady.  LD_PRELOAD idea from Brian Dessent.  */
 
 #include <config.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdint.h>
-#include "system.h"
+#include <stdlib.h>
+
+#include "gettext.h"
+#define _(msgid) gettext (msgid)
 
 /* Deactivate config.h's "rpl_"-prefixed definitions, since we don't
    link gnulib here, and the replacements aren't needed.  */
 #undef fprintf
 #undef free
 #undef malloc
-#undef strtoumax
+#undef strtoul
 
 /* Note currently for glibc (2.3.5) the following call does not change
    the buffer size, and more problematically does not give any indication
@@ -41,7 +44,7 @@
    size specifies the size of the array; otherwise, size _may_ determine
    the size of a buffer allocated by the setvbuf function. ...
 
-   Obviously some interpret the above to mean setvbuf(....,size)
+   Obviously some interpret the above to mean setvbuf (..., size)
    is only a hint from the application which I don't agree with.
 
    FreeBSD's libc seems more sensible in this regard. From the man page:
@@ -57,43 +60,23 @@
    Another issue is that on glibc-2.7 the following doesn't buffer
    the first write if it's greater than 1 byte.
 
-       setvbuf(stdout,buf,_IOFBF,127);
+       setvbuf (stdout, buf, _IOFBF, 127);
 
    Now the POSIX standard says that "allocating a buffer of size bytes does
    not necessarily imply that all of size bytes are used for the buffer area".
    However I think it's just a buggy implementation due to the various
    inconsistencies with write sizes and subsequent writes.  */
 
-static char const *
-fileno_to_name (const int fd)
-{
-  char const *ret = nullptr;
-
-  switch (fd)
-    {
-    case 0:
-      ret = "stdin";
-      break;
-    case 1:
-      ret = "stdout";
-      break;
-    case 2:
-      ret = "stderr";
-      break;
-    default:
-      ret = "unknown";
-      break;
-    }
-
-  return ret;
-}
-
 static void
-apply_mode (FILE *stream, char const *mode)
+apply_mode (FILE *stream, char const *stream_name, char const *envvar)
 {
   char *buf = nullptr;
   int setvbuf_mode;
-  uintmax_t size = 0;
+  unsigned long int size = 0;
+
+  char const *mode = getenv (envvar);
+  if (!mode)
+    return;
 
   if (*mode == '0')
     setvbuf_mode = _IONBF;
@@ -103,22 +86,27 @@ apply_mode (FILE *stream, char const *mode)
     {
       setvbuf_mode = _IOFBF;
       char *mode_end;
-      size = strtoumax (mode, &mode_end, 10);
+      size = strtoul (mode, &mode_end, 10);
       if (size == 0 || *mode_end)
         {
           fprintf (stderr, _("invalid buffering mode %s for %s\n"),
-                   mode, fileno_to_name (fileno (stream)));
+                   mode, stream_name);
           return;
         }
 
-      buf = size <= SIZE_MAX ? malloc (size) : nullptr;
+      /* If strtoul might have overflowed or if the size is more than
+         half of size_t range, treat it as an allocation failure.
+         Huge sizes can cause problems with some stdio implementations.  */
+      buf = (size <= ((unsigned long int) -2 < (size_t) -1 / 2
+                      ? (unsigned long int) -2 : (size_t) -1 / 2)
+             ? malloc (size) : nullptr);
       if (!buf)
         {
           /* We could defer the allocation to libc, however since
              glibc currently ignores the combination of null buffer
              with non zero size, we'll fail here.  */
           fprintf (stderr,
-                   _("failed to allocate a %ju byte stdio buffer\n"),
+                   _("failed to allocate a %lu byte stdio buffer\n"),
                    size);
           return;
         }
@@ -128,7 +116,7 @@ apply_mode (FILE *stream, char const *mode)
   if (setvbuf (stream, buf, setvbuf_mode, size) != 0)
     {
       fprintf (stderr, _("could not set buffering of %s to mode %s\n"),
-               fileno_to_name (fileno (stream)), mode);
+               stream_name, mode);
       free (buf);
     }
 }
@@ -137,13 +125,9 @@ apply_mode (FILE *stream, char const *mode)
 static void __attribute ((constructor))
 stdbuf (void)
 {
-  char *e_mode = getenv ("_STDBUF_E");
-  char *i_mode = getenv ("_STDBUF_I");
-  char *o_mode = getenv ("_STDBUF_O");
-  if (e_mode) /* Do first so can write errors to stderr  */
-    apply_mode (stderr, e_mode);
-  if (i_mode)
-    apply_mode (stdin, i_mode);
-  if (o_mode)
-    apply_mode (stdout, o_mode);
+  /* Do first so can write errors to stderr.  */
+  apply_mode (stderr, "stderr", "_STDBUF_E");
+
+  apply_mode (stdin, "stdin", "_STDBUF_I");
+  apply_mode (stdout, "stdout", "_STDBUF_O");
 }
