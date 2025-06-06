@@ -217,6 +217,7 @@ struct keyfield
   bool human_numeric;		/* Flag for sorting by human readable
                                    units with either SI or IEC prefixes. */
   bool month;			/* Flag for comparison by month name. */
+  bool basename;		/* Compare by basename */
   bool reverse;			/* Reverse the sense of comparison. */
   bool version;			/* sort by version number */
   bool traditional_used;	/* Traditional key option format is used. */
@@ -431,6 +432,8 @@ Ordering options:\n\
 \n\
 "), stdout);
       fputs (_("\
+  -B, --basename              strip leading directory names, if any, and\n\
+                                compare by basenames\n\
   -b, --ignore-leading-blanks  ignore leading blanks\n\
   -d, --dictionary-order      consider only blanks and alphanumeric characters\
 \n\
@@ -547,10 +550,11 @@ enum
   PARALLEL_OPTION
 };
 
-static char const short_options[] = "-bcCdfghik:mMno:rRsS:t:T:uVy:z";
+static char const short_options[] = "-bBcCdfghik:mMno:rRsS:t:T:uVy:z";
 
 static struct option const long_options[] =
 {
+  {"basename", no_argument, nullptr, 'B'},
   {"ignore-leading-blanks", no_argument, nullptr, 'b'},
   {"check", optional_argument, nullptr, CHECK_OPTION},
   {"compress-program", required_argument, nullptr, COMPRESS_PROGRAM_OPTION},
@@ -2452,6 +2456,7 @@ default_key_compare (struct keyfield const *key)
             || key->month
             || key->version
             || key->random
+            || key->basename
             /* || key->reverse */
            );
 }
@@ -2461,6 +2466,8 @@ default_key_compare (struct keyfield const *key)
 static void
 key_to_opts (struct keyfield const *key, char *opts)
 {
+  if (key->basename)
+    *opts++ = 'B';
   if (key->skipsblanks || key->skipeblanks)
     *opts++ = 'b';/* either disables global -b  */
   if (key->ignore == nondictionary)
@@ -2587,6 +2594,7 @@ key_warnings (struct keyfield const *gkey, bool gkey_only)
       ugkey.random &= !key->random;
       ugkey.version &= !key->version;
       ugkey.reverse &= !key->reverse;
+      ugkey.basename &= !key->basename;
     }
 
   /* Explicitly warn if field delimiters in this locale
@@ -2639,7 +2647,8 @@ key_warnings (struct keyfield const *gkey, bool gkey_only)
   if ((basic_numeric_field || general_numeric_field) && ! number_locale_warned)
     {
       error (0, 0,
-             _("numbers use %s as a decimal point in this locale"),
+             _("%snumbers use %s as a decimal point in this locale"),
+             tab == decimal_point ? "" : _("note "),
              quote (((char []) {decimal_point, 0})));
 
     }
@@ -2712,7 +2721,7 @@ keycompare (struct line const *a, struct line const *b)
       size_t lenb = limb - textb;
 
       if (hard_LC_COLLATE || key_numeric (key)
-          || key->month || key->random || key->version)
+          || key->month || key->random || key->version || key->basename)
         {
           /* Ordinarily use the keys in-place, temporarily null-terminated.  */
           char *ta = texta;
@@ -2759,6 +2768,12 @@ keycompare (struct line const *a, struct line const *b)
           ta[tlena] = '\0';
           tb[tlenb] = '\0';
 
+          if (key->basename) {
+            ta = basename(ta);
+            tlena = strlen(ta);
+            tb = basename(tb);
+            tlenb = strlen(tb);
+          }
           if (key->numeric)
             diff = numcompare (ta, tb);
           else if (key->general_numeric)
@@ -4280,6 +4295,9 @@ set_ordering (char const *s, struct keyfield *key, enum blanktype blanktype)
     {
       switch (*s)
         {
+        case 'B':
+          key->basename = true;
+          break;
         case 'b':
           if (blanktype == bl_start || blanktype == bl_both)
             key->skipsblanks = true;
@@ -4537,6 +4555,7 @@ main (int argc, char **argv)
         case SORT_OPTION:
           c = XARGMATCH ("--sort", optarg, sort_args, sort_types);
           FALLTHROUGH;
+        case 'B':
         case 'b':
         case 'd':
         case 'f':
@@ -4796,6 +4815,7 @@ main (int argc, char **argv)
           key->version = gkey.version;
           key->random = gkey.random;
           key->reverse = gkey.reverse;
+          key->basename = gkey.basename;
         }
 
       need_random |= key->random;
